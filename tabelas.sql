@@ -1,4 +1,4 @@
-CREATE TABLE funcioncario(
+CREATE TABLE Funcionario(
     id_funcionario SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
     cargo VARCHAR(50) NOT NULL
@@ -49,7 +49,7 @@ CREATE TABLE Aluguel(
     tempo_aluguel INTEGER,
     valor_total NUMERIC(10, 2),
     multa NUMERIC(10, 2) DEFAULT 0.00,
-    id_funcionario INTEGER NOT NULL REFERENCES funcioncario(id_funcionario),
+    id_funcionario INTEGER NOT NULL REFERENCES Funcionario(id_funcionario),
     id_cliente INTEGER NOT NULL REFERENCES Cliente(id_cliente)
 );
 
@@ -73,7 +73,7 @@ ALTER TABLE Jogo
 ADD COLUMN id_plataforma INTEGER NOT NULL REFERENCES Plataforma(id_plataforma);
 
 -- FUNCIONARIOS
-INSERT INTO funcioncario (nome, cargo) 
+INSERT INTO Funcionario (nome, cargo) 
 VALUES
 ('Ana Souza', 'Atendente'),          
 ('Bruno Lima', 'Gerente'),           
@@ -135,10 +135,10 @@ VALUES
 -- ALUGUEIS
 INSERT INTO Aluguel (data_devolucao, tempo_aluguel, valor_total, multa, id_funcionario, id_cliente) 
 VALUES
-(CURRENT_TIMESTAMP + INTERVAL '3 days', 3, 29.70, 0.00, 1, 1),
-(CURRENT_TIMESTAMP + INTERVAL '2 days', 2, 15.00, 0.00, 2, 2),
-(CURRENT_TIMESTAMP + INTERVAL '5 days', 5, 52.50, 0.00, 3, 3),
-(CURRENT_TIMESTAMP + INTERVAL '1 days', 1, 10.00, 0.00, 4, 4); 
+(CURRENT_TIMESTAMP + INTERVAL '3 dias', 3, 29.70, 0.00, 1, 1),
+(CURRENT_TIMESTAMP + INTERVAL '2 dias', 2, 15.00, 0.00, 2, 2),
+(CURRENT_TIMESTAMP + INTERVAL '5 dias', 5, 52.50, 0.00, 3, 3),
+(CURRENT_TIMESTAMP + INTERVAL '1 dias', 1, 10.00, 0.00, 4, 4); 
 
 -- ABASTECE (fornecedor abastece jogos fisicos)
 INSERT INTO Abastece (cnpj_fornecedor, id_jogo_fisico, data_abastecimento, quantidade) 
@@ -181,16 +181,12 @@ WHERE id_aluguel IN (
 DELETE FROM Aluguel
 WHERE id_cliente = 3;
 
--- 1.3 Se quiser também remover alugueis do funcionario 4 (Fernanda)
-DELETE FROM Aluguel
-WHERE id_funcionario = 4;
-
 -- 1.4 Remover registros de Abastece que usam o jogo fisico 6
 DELETE FROM Abastece
 WHERE id_jogo_fisico = 6;
 
 -- Remover o funcionário específico (Diego Rocha, id = 4)
-DELETE FROM funcioncario
+DELETE FROM Funcionario
 WHERE id_funcionario = 4;
 
 -- Remover o cliente específico (João Pereira, id = 3)
@@ -207,7 +203,7 @@ WHERE cnpj_fornecedor = '22.333.444/0001-55';
 
 -- Listar todos os funcionários
 SELECT id_funcionario, nome, cargo
-FROM funcioncario;
+FROM Funcionario;
 
 -- Listar todos os clientes
 SELECT id_cliente, nome, cpf, email
@@ -249,7 +245,7 @@ SELECT a.id_aluguel,
        f.nome AS funcionario
 FROM Aluguel a
 JOIN Cliente c      ON c.id_cliente = a.id_cliente
-JOIN funcioncario f ON f.id_funcionario = a.id_funcionario;
+JOIN Funcionario f ON f.id_funcionario = a.id_funcionario;
 
 -- Itens de aluguel com jogo, cliente e funcionário
 SELECT a.id_aluguel,
@@ -262,7 +258,7 @@ SELECT a.id_aluguel,
 FROM Inclui i
 JOIN Aluguel a      ON a.id_aluguel = i.id_aluguel
 JOIN Cliente c      ON c.id_cliente = a.id_cliente
-JOIN funcioncario f ON f.id_funcionario = a.id_funcionario
+JOIN Funcionario f ON f.id_funcionario = a.id_funcionario
 JOIN Jogo j         ON j.id_jogo = i.id_jogo;
 
 -- Total de alugueis por cliente
@@ -292,7 +288,7 @@ SET estoque = estoque + 3
 WHERE id_jogo = 4;
 
 -- Mudar o cargo de um funcionário (ex.: Bruno Lima vira Supervisor)
-UPDATE funcioncario
+UPDATE Funcionario
 SET cargo = 'Supervisor'
 WHERE nome = 'Bruno Lima';
 
@@ -324,7 +320,7 @@ SELECT a.id_aluguel,
        (i.quantidade * i.valor_unitario) AS subtotal
 FROM Aluguel a
 JOIN Cliente c      ON a.id_cliente = c.id_cliente
-JOIN funcioncario f ON a.id_funcionario = f.id_funcionario
+JOIN Funcionario f ON a.id_funcionario = f.id_funcionario
 JOIN Inclui i       ON i.id_aluguel = a.id_aluguel
 JOIN Jogo j         ON j.id_jogo = i.id_jogo;
 
@@ -343,8 +339,7 @@ JOIN Inclui i ON i.id_jogo = j.id_jogo
 GROUP BY j.id_jogo, j.titulo;
 
 -- Consultar a view de faturamento por jogo
-SELECT *
-FROM vw_faturamento_por_jogo
+SELECT * FROM vw_faturamento_por_jogo
 ORDER BY faturamento_total DESC;
 
 -- View para estoque de jogos físicos por plataforma
@@ -358,8 +353,7 @@ JOIN Jogo j      ON j.id_plataforma = p.id_plataforma
 JOIN JogoFisico jf ON jf.id_jogo = j.id_jogo;
 
 -- Consultar a view de estoque por plataforma
-SELECT *
-FROM vw_estoque_por_plataforma
+SELECT * FROM vw_estoque_por_plataforma
 WHERE plataforma = 'PlayStation 5';
 
 -- View para total de alugueis por cliente
@@ -373,37 +367,41 @@ LEFT JOIN Aluguel a ON a.id_cliente = c.id_cliente
 GROUP BY c.id_cliente, c.nome, c.cpf;
 
 -- Consultar a view de total de alugueis por cliente
-SELECT *
-FROM vw_clientes_alugueis
+SELECT * FROM vw_clientes_alugueis
 ORDER BY total_alugueis DESC;
 
 -- Função de trigger: diminui o estoque de JogoFisico quando um item é adicionado em Inclui
 CREATE OR REPLACE FUNCTION fn_atualiza_estoque_apos_incluir()
 RETURNS TRIGGER AS
 $$
+DECLARE
+    v_estoque_atual INTEGER;  -- guarda o estoque atual do jogo físico
 BEGIN
-    -- Só mexe se o jogo for físico
-    IF EXISTS (
-        SELECT 1
-        FROM JogoFisico jf
-        WHERE jf.id_jogo = NEW.id_jogo
-    ) THEN
-        
-        UPDATE JogoFisico
-        SET estoque = estoque - NEW.quantidade
-        WHERE id_jogo = NEW.id_jogo;
+    -- Busca o estoque do jogo na tabela de jogos físicos
+    SELECT estoque
+    INTO v_estoque_atual
+    FROM JogoFisico
+    WHERE id_jogo = NEW.id_jogo;
 
-        -- Evita estoque negativo
-        IF (SELECT estoque FROM JogoFisico WHERE id_jogo = NEW.id_jogo) < 0 THEN
-            RAISE EXCEPTION 'Estoque insuficiente para o jogo de ID %', NEW.id_jogo;
-        END IF;
-
+    -- Se não achou registro em JogoFisico, então é jogo digital -> não mexe em nada
+    IF v_estoque_atual IS NULL THEN
+        RETURN NEW;
     END IF;
 
+    -- Verifica se, após a locação, o estoque ficaria negativo
+    IF v_estoque_atual - NEW.quantidade < 0 THEN
+        RAISE EXCEPTION 'Estoque insuficiente para o jogo de ID %', NEW.id_jogo;
+    END IF;
+
+    -- Atualiza o estoque subtraindo a quantidade alugada
+    UPDATE JogoFisico
+    SET estoque = v_estoque_atual - NEW.quantidade
+    WHERE id_jogo = NEW.id_jogo;
+
+    -- Devolve a linha que está sendo inserida na tabela Inclui
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 
 -- Gatilho: dispara depois de inserir linha em Inclui
 CREATE TRIGGER trg_atualiza_estoque_incluir
@@ -452,7 +450,7 @@ DECLARE
 BEGIN
     -- pega a devolução real e a data prevista (data_aluguel + tempo_aluguel)
     SELECT data_devolucao,
-           data_aluguel + (tempo_aluguel || ' days')::INTERVAL
+           data_aluguel + (tempo_aluguel || 'dias')::INTERVAL
     INTO  v_data_devolucao_real, v_data_devolucao_prevista
     FROM Aluguel
     WHERE id_aluguel = p_id_aluguel;
@@ -464,7 +462,7 @@ BEGIN
 
     -- calcula dias de atraso (não deixa negativo)
     v_dias_atraso := GREATEST(
-        DATE_PART('day', v_data_devolucao_real - v_data_devolucao_prevista)::INTEGER,
+        DATE_PART('dia', v_data_devolucao_real - v_data_devolucao_prevista)::INTEGER,
         0
     );
 
